@@ -2,9 +2,12 @@
 
 #define MONTH_INVALID_ARG "Month value is invalid: "
 #define DAY_INVALID_ARG "Day value is invalid: "
+#define DATE_INVALID_STRING "Wrong date format: "
+#define COMMAND_INVALID_STRING "Unknown command: "
 #define EVENT_NOT_FOUND "Event not found"
 #define EVENT_DELETE_SUCCESS "Deleted successfully"
 #define EVENTS_DELETED_ZERO "Deleted 0 events"
+#define DATE_SEPARATOR '-'
 
 using namespace std;
 
@@ -82,7 +85,13 @@ private:
 // Date
 class Date {
 public:
-  explicit Date(Year new_year, Month new_month, Day new_day) {
+  Date() {
+    year = Year();
+    month = Month();
+    day = Day();
+  }
+
+  Date(Year new_year, Month new_month, Day new_day) {
     year = new_year;
     month = new_month;
     day = new_day;
@@ -111,7 +120,9 @@ private:
 // Event
 class Event {
 public:
-  explicit Event(const string &event) {
+  Event() {}
+
+  Event(const string &event) {
     this->event = event;
   }
 
@@ -190,6 +201,60 @@ ostream &operator<<(ostream &os, const Date &date) {
   return os;
 }
 
+istream &operator>>(istream &is, Event &event) {
+  string input;
+  is >> input;
+  event = Event(input);
+  return is;
+}
+
+istream &operator>>(istream &is, Year &year) {
+  int new_year;
+  is >> new_year;
+  year = Year(new_year);
+  return is;
+}
+
+istream &operator>>(istream &is, Month &month) {
+  int new_month;
+  is >> new_month;
+  month = Month(new_month);
+  return is;
+}
+
+istream &operator>>(istream &is, Day &day) {
+  int new_day;
+  is >> new_day;
+  day = Day(new_day);
+  return is;
+}
+
+istream &operator>>(istream &is, Date &date) {
+  int new_year, new_month, new_day;
+  char sep;
+  bool is_valid_date = true;
+  string date_str;
+  is >> date_str;
+
+  istringstream stream(date_str);
+  stream >> new_year;
+  stream >> sep;
+  is_valid_date &= sep == DATE_SEPARATOR;
+  stream >> new_month;
+  stream >> sep;
+  is_valid_date &= sep == DATE_SEPARATOR;
+  stream >> new_day;
+  if (!stream || stream >> sep || !is_valid_date) {
+    throw runtime_error(DATE_INVALID_STRING + date_str);
+  }
+
+  Year year(new_year);
+  Month month(new_month);
+  Day day(new_day);
+  date = Date(year, month, day);
+  return is;
+}
+
 void PrintEvents(const set<Event> &events) {
   for (const auto &event : events) {
     cout << event << '\n';
@@ -205,40 +270,43 @@ void PrintAllEvents(const map<Date, set<Event>> &notebook) {
 }
 
 int main() {
-  Database database;
+  Database db;
 
-  Date date1(Year(134), Month(1), Day(8));
-  Date date2(Year(789), Month(12), Day(23));
-  Date date3(Year(2000), Month(6), Day(24));
+  string line, command;
+  Date date;
+  Event event;
+  while(getline(cin, line)) {
+    if (line.empty()) {
+      continue;
+    }
 
-  cout << "@@@ Appending events @@@\n";
+    try {
+      istringstream input(line);
+      input >> command;
 
-  database.AddEvent(date1, Event("date1-event1"));
-  database.AddEvent(date1, Event("date1-event2"));
-  database.AddEvent(date2, Event("date2-event1"));
-  database.AddEvent(date3, Event("date3-event1"));
-  database.AddEvent(date3, Event("date3-event2"));
-  database.AddEvent(date3, Event("date3-event3"));
-
-  cout << "@@@ Deleting event \"date3-event2\" @@@\n";
-
-  database.DeleteEvent(date3, Event("date3-event2"));
-
-  cout << "@@@ Printing events on date3 @@@\n";
-
-  PrintEvents(database.FindEvents(date3));
-
-  cout << "@@@ Printing all events @@@\n";
-
-  PrintAllEvents(database.GetAllEvents());
-
-  cout << "@@@ Deleting events on date1 @@@\n";
-
-  database.DeleteEvents(date1);
-
-  cout << "@@@ Printing all events @@@\n";
-
-  PrintAllEvents(database.GetAllEvents());
+      if (command == "Add") {
+        input >> date >> event;
+        db.AddEvent(date, event);
+      } else if (command == "Find") {
+        input >> date;
+        PrintEvents(db.FindEvents(date));
+      } else if (command == "Print") {
+        PrintAllEvents(db.GetAllEvents());
+      } else if (command == "Del") {
+        input >> date;
+        if (input >> event) {
+          cout << db.DeleteEvent(date, event) << '\n';
+        } else {
+          cout << db.DeleteEvents(date) << '\n';
+        }
+      } else {
+        throw runtime_error(COMMAND_INVALID_STRING + command);
+      }
+    } catch (exception &ex) {
+      cout << ex.what() << '\n';
+      return 0;
+    }
+  }
 
   return 0;
 }
